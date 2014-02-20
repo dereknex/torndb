@@ -234,4 +234,3 @@ class Row(dict):
             return self[name]
         except KeyError:
             raise AttributeError(name)
-My
