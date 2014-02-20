@@ -29,18 +29,7 @@ import logging
 import os
 import time
 
-try:
-    import MySQLdb.constants
-    import MySQLdb.converters
-    import MySQLdb.cursors
-except ImportError:
-    # If MySQLdb isn't available this module won't actually be useable,
-    # but we want it to at least be importable on readthedocs.org,
-    # which has limitations on third-party modules.
-    if 'READTHEDOCS' in os.environ:
-        MySQLdb = None
-    else:
-        raise
+import mysql.connector
 
 version = "0.2"
 version_info = (0, 2, 0, 0)
@@ -114,7 +103,7 @@ class Connection(object):
     def reconnect(self):
         """Closes the existing database connection and re-opens it."""
         self.close()
-        self._db = MySQLdb.connect(**self._db_args)
+        self._db = mysql.connector.connect(**self._db_args)
         self._db.autocommit(True)
 
     def iter(self, query, *parameters, **kwparameters):
@@ -245,20 +234,4 @@ class Row(dict):
             return self[name]
         except KeyError:
             raise AttributeError(name)
-
-if MySQLdb is not None:
-    # Fix the access conversions to properly recognize unicode/binary
-    FIELD_TYPE = MySQLdb.constants.FIELD_TYPE
-    FLAG = MySQLdb.constants.FLAG
-    CONVERSIONS = copy.copy(MySQLdb.converters.conversions)
-
-    field_types = [FIELD_TYPE.BLOB, FIELD_TYPE.STRING, FIELD_TYPE.VAR_STRING]
-    if 'VARCHAR' in vars(FIELD_TYPE):
-        field_types.append(FIELD_TYPE.VARCHAR)
-
-    for field_type in field_types:
-        CONVERSIONS[field_type] = [(FLAG.BINARY, str)] + CONVERSIONS[field_type]
-
-    # Alias some common MySQL exceptions
-    IntegrityError = MySQLdb.IntegrityError
-    OperationalError = MySQLdb.OperationalError
+My
