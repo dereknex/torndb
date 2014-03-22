@@ -54,33 +54,18 @@ class Connection(object):
     (http://dev.mysql.com/doc/refman/5.0/en/server-sql-mode.html). However, it can be set to
     any other mode including blank (None) thereby explicitly clearing the SQL mode.
     """
-    def __init__(self, host, database, user=None, password=None,
-                 max_idle_time=7 * 3600, connect_timeout=0, 
-                 time_zone="+0:00", charset = "utf8", sql_mode="TRADITIONAL"):
+    def __init__(self, host, database, user=None, password=None, port=3306,
+                 max_idle_time=7 * 3600, charset = "utf8", sql_mode="TRADITIONAL"):
         self.host = host
         self.database = database
         self.max_idle_time = float(max_idle_time)
 
-        args = dict(conv=CONVERSIONS, use_unicode=True, charset=charset,
-                    db=database, init_command=('SET time_zone = "%s"' % time_zone),
-                    connect_timeout=connect_timeout, sql_mode=sql_mode)
+        args = dict(use_unicode=True, charset=charset,
+                    database=database, port=port, autocommit=True)
         if user is not None:
             args["user"] = user
         if password is not None:
-            args["passwd"] = password
-
-        # We accept a path to a MySQL socket file or a host(:port) string
-        if "/" in host:
-            args["unix_socket"] = host
-        else:
-            self.socket = None
-            pair = host.split(":")
-            if len(pair) == 2:
-                args["host"] = pair[0]
-                args["port"] = int(pair[1])
-            else:
-                args["host"] = host
-                args["port"] = 3306
+            args["password"] = password
 
         self._db = None
         self._db_args = args
@@ -104,12 +89,11 @@ class Connection(object):
         """Closes the existing database connection and re-opens it."""
         self.close()
         self._db = mysql.connector.connect(**self._db_args)
-        self._db.autocommit(True)
 
     def iter(self, query, *parameters, **kwparameters):
         """Returns an iterator for the given query and parameters."""
         self._ensure_connected()
-        cursor = MySQLdb.cursors.SSCursor(self._db)
+        cursor = mysql.connection.cursors.SSCursor(self._db)
         try:
             self._execute(cursor, query, parameters, kwparameters)
             column_names = [d[0] for d in cursor.description]
@@ -124,7 +108,7 @@ class Connection(object):
         try:
             self._execute(cursor, query, parameters, kwparameters)
             column_names = [d[0] for d in cursor.description]
-            return [Row(itertools.izip(column_names, row)) for row in cursor]
+            return [Row(itertools.zip_longest(column_names, row)) for row in cursor]
         finally:
             cursor.close()
 
@@ -234,3 +218,29 @@ class Row(dict):
             return self[name]
         except KeyError:
             raise AttributeError(name)
+try:
+    from exceptions import Exception, StandardError, Warning
+except ImportError:
+    # Python 3
+    StandardError = Exception
+
+class DatabaseError(StandardError):
+
+    """Exception raised for errors that are related to the
+    database."""
+
+class IntegrityError(DatabaseError):
+
+    """Exception raised when the relational integrity of the database
+    is affected, e.g. a foreign key check fails, duplicate key,
+    etc."""
+
+class OperationalError(DatabaseError):
+
+    """Exception raised for errors that are related to the database's
+    operation and not necessarily under the control of the programmer,
+    e.g. an unexpected disconnect occurs, the data source name is not
+    found, a transaction could not be processed, a memory allocation
+    error occurred during processing, etc."""
+
+
